@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>坦克飞机大战 - PS5风格</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎮</text></svg>">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: 'Segoe UI', 'Arial', sans-serif;
+        }
+        #gameWrapper {
+            position: relative;
+            border: 2px solid #1a6bff;
+            box-shadow: 0 0 40px rgba(26, 107, 255, 0.3), inset 0 0 40px rgba(26, 107, 255, 0.05);
+            border-radius: 12px;
+        }
+        #gameWrapper::before {
+            content: '';
+            position: absolute;
+            top: -2px; left: -2px; right: -2px; bottom: -2px;
+            border-radius: 14px;
+            background: linear-gradient(45deg, #1a6bff, #0033cc, #1a6bff, #0066ff);
+            background-size: 400% 400%;
+            z-index: -1;
+            animation: borderGlow 3s ease infinite;
+        }
+        @keyframes borderGlow {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        canvas {
+            display: block;
+            border-radius: 10px;
+            background: #0a0e1a;
+        }
+        #uiOverlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none;
+            border-radius: 10px;
+        }
+        #menuScreen {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.85);
+            border-radius: 10px;
+            pointer-events: auto;
+        }
+        #menuScreen h1 {
+            font-size: 52px;
+            font-weight: 900;
+            background: linear-gradient(135deg, #1a6bff, #00d4ff, #1a6bff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: none;
+            margin-bottom: 8px;
+            letter-spacing: 4px;
+        }
+        #menuScreen .subtitle {
+            color: #6b8cff;
+            font-size: 16px;
+            letter-spacing: 8px;
+            margin-bottom: 50px;
+            opacity: 0.8;
+        }
+        .menu-btn {
+            background: transparent;
+            border: 2px solid #1a6bff;
+            color: #fff;
+            font-size: 20px;
+            padding: 14px 60px;
+            margin: 8px;
+            border-radius: 50px;
+            cursor: pointer;
+            pointer-events: auto;
+            transition: all 0.3s;
+            font-weight: 600;
+            letter-spacing: 2px;
+            min-width: 280px;
+            position: relative;
+            overflow: hidden;
+        }
+        .menu-btn:hover {
+            background: #1a6bff;
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(26, 107, 255, 0.5);
+        }
+        .menu-btn:active {
+            transform: scale(0.98);
+        }
+        .menu-btn .badge {
+            font-size: 12px;
+            background: #ffd700;
+            color: #000;
+            border-radius: 10px;
+            padding: 2px 10px;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+        #gameOverScreen, #pauseScreen {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.85);
+            border-radius: 10px;
+            pointer-events: auto;
+        }
+        #gameOverScreen h1, #pauseScreen h1 {
+            color: #fff;
+            font-size: 48px;
+            margin-bottom: 20px;
+            letter-spacing: 4px;
+        }
+        #gameOverScreen .stats {
+            color: #8ab4ff;
+            font-size: 18px;
+            margin: 5px;
+        }
+        .ps5-lines {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none;
+            overflow: hidden;
+            border-radius: 10px;
+        }
+        .ps5-lines::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, #1a6bff, transparent);
+            animation: scanLine 4s linear infinite;
+        }
+        @keyframes scanLine {
+            0% { top: 0; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+        .controls-info {
+            color: #4a6a8a;
+            font-size: 13px;
+            margin-top: 30px;
+            text-align: center;
+            line-height: 1.8;
+        }
+        .controls-info span {
+            color: #6b8cff;
+        }
+    </style>
+</head>
+<body>
+
+<div id="gameWrapper">
+    <canvas id="gameCanvas"></canvas>
+    <div class="ps5-lines"></div>
+
+    <div id="menuScreen">
+        <h1>⚔ 坦克飞机大战</h1>
+        <div class="subtitle">PS5 EDITION</div>
+        <button class="menu-btn" onclick="startGame(1)">🎮 单人模式</button>
+        <button class="menu-btn" onclick="startGame(2)">👥 双人模式</button>
+        <div class="controls-info">
+            <span>P1</span> WASD移动 | J射击 | K大招 &nbsp;&nbsp;|&nbsp;&nbsp;
+            <span>P2</span> ↑↓←→移动 | 1射击 | 2大招<br>
+            <span>ESC</span> 暂停 &nbsp;|&nbsp; 消灭所有敌人通关！
+        </div>
+    </div>
+
+    <div id="pauseScreen">
+        <h1>⏸ 暂停</h1>
+        <button class="menu-btn" onclick="resumeGame()">▶ 继续游戏</button>
+        <button class="menu-btn" onclick="backToMenu()">🏠 返回主菜单</button>
+    </div>
+
+    <div id="gameOverScreen">
+        <h1 id="resultTitle">💥 游戏结束</h1>
+        <div class="stats" id="resultStats"></div>
+        <button class="menu-btn" onclick="backToMenu()">🏠 返回主菜单</button>
+    </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>
