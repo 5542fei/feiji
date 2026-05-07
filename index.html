@@ -110,6 +110,28 @@
             margin-left: 10px;
             vertical-align: middle;
         }
+        #levelTransitionScreen {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.85);
+            border-radius: 10px;
+            pointer-events: auto;
+        }
+        #levelTransitionScreen h1 {
+            color: #ffd700;
+            font-size: 48px;
+            margin-bottom: 20px;
+            letter-spacing: 4px;
+        }
+        #levelTransitionScreen .stats {
+            color: #8ab4ff;
+            font-size: 18px;
+            margin: 5px;
+        }
         #gameOverScreen, #pauseScreen {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -186,6 +208,13 @@
     <div id="pauseScreen">
         <h1>⏸ 暂停</h1>
         <button class="menu-btn" onclick="resumeGame()">▶ 继续游戏</button>
+        <button class="menu-btn" onclick="backToMenu()">🏠 返回主菜单</button>
+    </div>
+
+    <div id="levelTransitionScreen">
+        <h1 id="levelTransitionTitle">🎉 第一关通过!</h1>
+        <div class="stats" id="levelTransitionInfo"></div>
+        <button class="menu-btn" onclick="startLevel(2)">▶ 进入第二关</button>
         <button class="menu-btn" onclick="backToMenu()">🏠 返回主菜单</button>
     </div>
 

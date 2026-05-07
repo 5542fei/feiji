@@ -337,6 +337,22 @@ function playSfx(type) {
                 osc.start(now); osc.stop(now + 0.05);
                 break;
             }
+            case 'level_up': {
+                for (let i = 0; i < 3; i++) {
+                    const osc = audioCtx.createOscillator();
+                    const g = audioCtx.createGain();
+                    osc.type = 'sine';
+                    const t = now + i * 0.12;
+                    osc.frequency.setValueAtTime(523, t);
+                    osc.frequency.setValueAtTime(659, t + 0.06);
+                    osc.frequency.setValueAtTime(784, t + 0.12);
+                    g.gain.setValueAtTime(0.15, t);
+                    g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+                    osc.connect(g); g.connect(masterGain);
+                    osc.start(t); osc.stop(t + 0.18);
+                }
+                break;
+            }
         }
     } catch (e) { /* ignore audio errors */ }
 }
@@ -349,6 +365,7 @@ let gameTime = 0;
 let gameOver = false;
 let paused = false;
 let levelComplete = false;
+let currentLevel = 1;
 let animFrameId = null;
 let lastTime = 0;
 let shakeAmount = 0;
@@ -404,7 +421,16 @@ const ENEMY_TYPES = {
     HELICOPTER: 5,
     ARTILLERY: 6,
     MINIBOSS: 7,
-    BOSS: 8
+    BOSS: 8,
+    // Level 2 enemy types
+    ELITE_SCOUT: 9,
+    ELITE_TANK: 10,
+    STEALTH_FIGHTER: 11,
+    LASER_TURRET: 12,
+    NUKE_BOMBER: 13,
+    WARLOCK: 14,
+    MINIBOSS2: 15,
+    BOSS2: 16
 };
 
 const PICKUP_TYPES = {
@@ -416,7 +442,8 @@ const PICKUP_TYPES = {
     SHIELD: 5
 };
 
-const WAVE_CONFIG = [
+// ========== LEVEL 1 WAVE CONFIG ==========
+const WAVE_CONFIG_L1 = [
     // Phase 1: Introduction (0-30s)
     { time: 0, enemies: [{ type: ENEMY_TYPES.SCOUT, count: 2 }] },
     { time: 6, enemies: [{ type: ENEMY_TYPES.SCOUT, count: 2 }, { type: ENEMY_TYPES.TANK_LIGHT, count: 1 }] },
@@ -444,6 +471,37 @@ const WAVE_CONFIG = [
     // Phase 6: Final boss (150-180s)
     { time: 150, enemies: [{ type: ENEMY_TYPES.TANK_HEAVY, count: 2 }, { type: ENEMY_TYPES.ARTILLERY, count: 1 }] },
     { time: 158, enemies: [{ type: ENEMY_TYPES.BOSS, count: 1 }] },
+];
+
+// ========== LEVEL 2 WAVE CONFIG (Harder) ==========
+const WAVE_CONFIG_L2 = [
+    // Phase 1: Hard intro (0-25s)
+    { time: 0, enemies: [{ type: ENEMY_TYPES.ELITE_SCOUT, count: 2 }, { type: ENEMY_TYPES.TANK_LIGHT, count: 1 }] },
+    { time: 5, enemies: [{ type: ENEMY_TYPES.ELITE_SCOUT, count: 2 }, { type: ENEMY_TYPES.ELITE_TANK, count: 1 }] },
+    { time: 12, enemies: [{ type: ENEMY_TYPES.STEALTH_FIGHTER, count: 1 }, { type: ENEMY_TYPES.TANK_HEAVY, count: 1 }] },
+    { time: 20, enemies: [{ type: ENEMY_TYPES.ELITE_SCOUT, count: 3 }, { type: ENEMY_TYPES.ELITE_TANK, count: 1 }] },
+    // Phase 2: Escalation (25-60s)
+    { time: 26, enemies: [{ type: ENEMY_TYPES.LASER_TURRET, count: 1 }, { type: ENEMY_TYPES.FIGHTER, count: 2 }] },
+    { time: 34, enemies: [{ type: ENEMY_TYPES.NUKE_BOMBER, count: 1 }, { type: ENEMY_TYPES.ELITE_SCOUT, count: 2 }] },
+    { time: 42, enemies: [{ type: ENEMY_TYPES.ELITE_TANK, count: 2 }, { type: ENEMY_TYPES.STEALTH_FIGHTER, count: 1 }] },
+    { time: 50, enemies: [{ type: ENEMY_TYPES.LASER_TURRET, count: 1 }, { type: ENEMY_TYPES.HELICOPTER, count: 2 }] },
+    { time: 56, enemies: [{ type: ENEMY_TYPES.NUKE_BOMBER, count: 1 }, { type: ENEMY_TYPES.ELITE_TANK, count: 2 }] },
+    // Phase 3: Intense (60-95s)
+    { time: 62, enemies: [{ type: ENEMY_TYPES.STEALTH_FIGHTER, count: 2 }, { type: ENEMY_TYPES.LASER_TURRET, count: 1 }] },
+    { time: 70, enemies: [{ type: ENEMY_TYPES.WARLOCK, count: 1 }, { type: ENEMY_TYPES.ELITE_SCOUT, count: 2 }] },
+    { time: 78, enemies: [{ type: ENEMY_TYPES.NUKE_BOMBER, count: 2 }, { type: ENEMY_TYPES.ELITE_TANK, count: 1 }] },
+    { time: 86, enemies: [{ type: ENEMY_TYPES.LASER_TURRET, count: 2 }, { type: ENEMY_TYPES.STEALTH_FIGHTER, count: 1 }] },
+    // Phase 4: Miniboss2 approach (95-120s)
+    { time: 95, enemies: [{ type: ENEMY_TYPES.WARLOCK, count: 1 }, { type: ENEMY_TYPES.NUKE_BOMBER, count: 1 }] },
+    { time: 102, enemies: [{ type: ENEMY_TYPES.ELITE_TANK, count: 2 }, { type: ENEMY_TYPES.STEALTH_FIGHTER, count: 2 }] },
+    { time: 110, enemies: [{ type: ENEMY_TYPES.LASER_TURRET, count: 2 }, { type: ENEMY_TYPES.WARLOCK, count: 1 }] },
+    { time: 118, enemies: [{ type: ENEMY_TYPES.MINIBOSS2, count: 1 }] },
+    // Phase 5: After miniboss (120-140s)
+    { time: 124, enemies: [{ type: ENEMY_TYPES.STEALTH_FIGHTER, count: 3 }, { type: ENEMY_TYPES.ELITE_TANK, count: 2 }] },
+    { time: 132, enemies: [{ type: ENEMY_TYPES.NUKE_BOMBER, count: 2 }, { type: ENEMY_TYPES.WARLOCK, count: 1 }] },
+    // Phase 6: Final boss2 (140-170s)
+    { time: 140, enemies: [{ type: ENEMY_TYPES.ELITE_TANK, count: 2 }, { type: ENEMY_TYPES.LASER_TURRET, count: 1 }] },
+    { time: 148, enemies: [{ type: ENEMY_TYPES.BOSS2, count: 1 }] },
 ];
 
 // ========== INPUT SYSTEM ==========
@@ -1130,6 +1188,15 @@ class Enemy {
             [ENEMY_TYPES.ARTILLERY]:   { hp: 50, speed: 40,  damage: 30, score: 350,  color: '#8a6b4a', size: 1.0, shootRate: 3.5, isPlane: false, lobber: true },
             [ENEMY_TYPES.MINIBOSS]:    { hp: 400, speed: 80, damage: 20, score: 2000, color: '#ff4444', size: 1.5, shootRate: 1.0, isPlane: true, isBoss: true },
             [ENEMY_TYPES.BOSS]:        { hp: 800, speed: 50, damage: 30, score: 5000, color: '#ff0040', size: 2.0, shootRate: 0.7, isPlane: true, isBoss: true },
+            // Level 2 enemies
+            [ENEMY_TYPES.ELITE_SCOUT]:    { hp: 35, speed: 200, damage: 12, score: 150,  color: '#ff88cc', size: 0.75, shootRate: 1.5, isPlane: true },
+            [ENEMY_TYPES.ELITE_TANK]:     { hp: 70, speed: 110, damage: 16, score: 300,  color: '#cc6600', size: 0.9, shootRate: 1.5, isPlane: false },
+            [ENEMY_TYPES.STEALTH_FIGHTER]:{ hp: 25, speed: 300, damage: 14, score: 350,  color: '#aa44ff', size: 0.7, shootRate: 1.2, isPlane: true, stealth: true },
+            [ENEMY_TYPES.LASER_TURRET]:   { hp: 55, speed: 30,  damage: 22, score: 400,  color: '#ff2266', size: 1.0, shootRate: 0.8, isPlane: false, laser: true },
+            [ENEMY_TYPES.NUKE_BOMBER]:    { hp: 90, speed: 100, damage: 35, score: 500,  color: '#ff4400', size: 1.2, shootRate: 2.5, isPlane: true, dropsBomb: true },
+            [ENEMY_TYPES.WARLOCK]:        { hp: 60, speed: 150, damage: 18, score: 450,  color: '#8800ff', size: 0.9, shootRate: 1.0, isPlane: true, homing: true },
+            [ENEMY_TYPES.MINIBOSS2]:      { hp: 600, speed: 90, damage: 25, score: 3000, color: '#ff00aa', size: 1.6, shootRate: 0.8, isPlane: true, isBoss: true },
+            [ENEMY_TYPES.BOSS2]:          { hp: 1200, speed: 60, damage: 35, score: 8000, color: '#ff0088', size: 2.2, shootRate: 0.5, isPlane: true, isBoss: true },
         };
 
         const c = configs[type];
@@ -1147,6 +1214,9 @@ class Enemy {
         this.dropsBomb = c.dropsBomb || false;
         this.hovers = c.hovers || false;
         this.lobber = c.lobber || false;
+        this.stealth = c.stealth || false;
+        this.laser = c.laser || false;
+        this.homing = c.homing || false;
 
         this.angle = Math.PI / 2;
         this.state = 'enter';
@@ -1204,6 +1274,31 @@ class Enemy {
                 break;
             case ENEMY_TYPES.BOSS:
                 this.moveBoss(dt);
+                break;
+            // Level 2 enemy movements
+            case ENEMY_TYPES.ELITE_SCOUT:
+                this.moveEliteScout(dt);
+                break;
+            case ENEMY_TYPES.ELITE_TANK:
+                this.moveEliteTank(dt);
+                break;
+            case ENEMY_TYPES.STEALTH_FIGHTER:
+                this.moveStealthFighter(dt);
+                break;
+            case ENEMY_TYPES.LASER_TURRET:
+                this.moveLaserTurret(dt);
+                break;
+            case ENEMY_TYPES.NUKE_BOMBER:
+                this.moveNukeBomber(dt);
+                break;
+            case ENEMY_TYPES.WARLOCK:
+                this.moveWarlock(dt);
+                break;
+            case ENEMY_TYPES.MINIBOSS2:
+                this.moveMiniboss2(dt);
+                break;
+            case ENEMY_TYPES.BOSS2:
+                this.moveBoss2(dt);
                 break;
         }
 
@@ -1369,9 +1464,246 @@ class Enemy {
         }
         this.y = clamp(this.y, 40, 150);
     }
+
+    // ===== Level 2 Enemy Movements =====
+    moveEliteScout(dt) {
+        this.x += Math.sin(this.behaviorTimer * 2.5) * dt * 100;
+        this.y += dt * this.baseSpeed * 0.7;
+        this.angle = Math.PI / 2;
+        if (this.y > H + 50) this.alive = false;
+    }
+    moveEliteTank(dt) {
+        const players = getAlivePlayers();
+        if (players.length > 0) {
+            const target = players.reduce((a, b) => dist(this, a) < dist(this, b) ? a : b);
+            const dx = target.x - this.x;
+            const dy = target.y - this.y;
+            this.angle = Math.atan2(dy, dx);
+            const d = Math.hypot(dx, dy);
+            if (d < 1) return;
+            if (d > 200) {
+                this.x += (dx / d) * this.baseSpeed * dt * 0.8;
+                this.y += (dy / d) * this.baseSpeed * dt * 0.8;
+            } else if (d < 100) {
+                this.x -= (dx / d) * this.baseSpeed * dt * 0.4;
+                this.y -= (dy / d) * this.baseSpeed * dt * 0.4;
+            }
+        }
+    }
+    moveStealthFighter(dt) {
+        const players = getAlivePlayers();
+        if (players.length > 0) {
+            const target = players.reduce((a, b) => dist(this, a) < dist(this, b) ? a : b);
+            const dx = target.x - this.x;
+            const dy = target.y - this.y;
+            this.angle = Math.atan2(dy, dx);
+            const d = Math.hypot(dx, dy);
+            if (d < 1) return;
+            // Stealth fighters move erratically
+            const phase = this.behaviorTimer % 2;
+            if (phase < 1) {
+                this.x += (dx / d) * this.baseSpeed * dt * 1.5;
+                this.y += (dy / d) * this.baseSpeed * dt * 1.5;
+            } else {
+                this.x += Math.cos(this.behaviorTimer * 3) * dt * 150;
+                this.y += Math.sin(this.behaviorTimer * 3) * dt * 100;
+            }
+        }
+    }
+    moveLaserTurret(dt) {
+        this.angle = Math.PI / 2;
+        const players = getAlivePlayers();
+        if (players.length > 0) {
+            const target = players.reduce((a, b) => dist(this, a) < dist(this, b) ? a : b);
+            this.angle = Math.atan2(target.y - this.y, target.x - this.x);
+        }
+        // Turrets stay mostly still
+        this.x += Math.sin(this.behaviorTimer * 0.5) * dt * 20;
+    }
+    moveNukeBomber(dt) {
+        this.x += Math.sin(this.behaviorTimer * 0.6) * dt * 70;
+        this.y += dt * this.baseSpeed * 0.25;
+        this.angle = Math.PI / 2;
+        // Drop more bombs
+        if (Math.random() < dt * 0.5 && this.dropsBomb) {
+            bullets.push(new Bullet(this.x, this.y + 25, rand(-40, 40), 250, this.damage * 1.5, 'enemy', '#ff4400', 10));
+        }
+        if (this.y > H + 50) this.alive = false;
+    }
+    moveWarlock(dt) {
+        const players = getAlivePlayers();
+        if (players.length > 0) {
+            const target = players.reduce((a, b) => dist(this, a) < dist(this, b) ? a : b);
+            const dx = target.x - this.x;
+            const dy = target.y - this.y;
+            const d = Math.hypot(dx, dy);
+            this.angle = Math.atan2(dy, dx);
+            if (d > 1) {
+                if (d > 250) {
+                    this.x += (dx / d) * this.baseSpeed * dt * 0.9;
+                    this.y += (dy / d) * this.baseSpeed * dt * 0.9;
+                } else if (d < 150) {
+                    this.x -= (dx / d) * this.baseSpeed * dt * 0.6;
+                    this.y -= (dy / d) * this.baseSpeed * dt * 0.6;
+                }
+            }
+            this.x += Math.cos(this.behaviorTimer * 1.2) * dt * 50;
+            this.y += Math.sin(this.behaviorTimer * 1.2) * dt * 50;
+        }
+    }
+    moveMiniboss2(dt) {
+        this.phaseTimer += dt;
+        const players = getAlivePlayers();
+        if (players.length === 0) return;
+        const target = players.reduce((a, b) => dist(this, a) < dist(this, b) ? a : b);
+
+        if (this.phaseTimer < 4) {
+            this.x += Math.sin(this.phaseTimer * 1.0) * dt * 140;
+            this.y += dt * 20;
+            this.angle = Math.atan2(target.y - this.y, target.x - this.x);
+        } else if (this.phaseTimer < 8) {
+            const dx = target.x - this.x;
+            const dy = target.y - this.y;
+            const d = Math.hypot(dx, dy);
+            if (d > 1) {
+                this.x += (dx / d) * this.baseSpeed * dt * 1.8;
+                this.y += (dy / d) * this.baseSpeed * dt * 1.8;
+            }
+            this.angle = Math.atan2(dy, dx);
+            if (this.phaseTimer > 7) this.phaseTimer = 0;
+        } else {
+            this.phaseTimer = 0;
+        }
+        this.y = clamp(this.y, 60, 200);
+    }
+    moveBoss2(dt) {
+        this.phaseTimer += dt;
+        this.patternTimer += dt;
+        const players = getAlivePlayers();
+        if (players.length === 0) return;
+        const target = players.reduce((a, b) => dist(this, a) < dist(this, b) ? a : b);
+
+        const hpRatio = this.hp / this.maxHp;
+        if (hpRatio < 0.25) this.phase = 3;
+        else if (hpRatio < 0.5) this.phase = 2;
+        else this.phase = 1;
+
+        if (this.phase === 1) {
+            this.x += Math.sin(this.phaseTimer * 0.6) * dt * 80;
+            this.y = 70 + Math.sin(this.phaseTimer * 0.4) * 50;
+            this.angle = Math.atan2(target.y - this.y, target.x - this.x);
+            this.shootRate = 0.6;
+            this.speed = this.baseSpeed;
+        } else if (this.phase === 2) {
+            this.x += Math.sin(this.phaseTimer * 0.9) * dt * 120;
+            this.y = 50 + Math.sin(this.phaseTimer * 0.6) * 70;
+            this.angle = Math.atan2(target.y - this.y, target.x - this.x);
+            this.shootRate = 0.4;
+
+            if (this.patternTimer > 4) {
+                this.patternTimer = 0;
+                for (let i = 0; i < 3; i++) {
+                    enemies.push(new Enemy(ENEMY_TYPES.ELITE_SCOUT, this.x + rand(-120, 120), this.y + 40));
+                }
+            }
+        } else {
+            const dx = target.x - this.x;
+            const dy = target.y - this.y;
+            const d = Math.hypot(dx, dy);
+            if (d > 180) {
+                this.x += (dx / d) * this.baseSpeed * dt * 2.5;
+                this.y += (dy / d) * this.baseSpeed * dt * 2.5;
+            }
+            this.angle = Math.atan2(dy, dx);
+            this.shootRate = 0.25;
+            this.speed = this.baseSpeed * 2;
+
+            if (this.patternTimer > 2.5) {
+                this.patternTimer = 0;
+                for (let i = 0; i < 16; i++) {
+                    const a = (i / 16) * Math.PI * 2;
+                    bullets.push(new Bullet(this.x, this.y, Math.cos(a) * 400, Math.sin(a) * 400, 18, 'enemy', '#ff0088', 6));
+                }
+            }
+        }
+        this.y = clamp(this.y, 40, 150);
+    }
+
     enemyShoot() {
         playSfx('shoot_enemy');
-        if (this.isBoss) {
+
+        // Boss2 shooting
+        if (this.type === ENEMY_TYPES.BOSS2) {
+            if (this.phase === 1) {
+                const target = getAlivePlayers()[0] || { x: W / 2, y: H };
+                const dx = target.x - this.x;
+                const dy = target.y - this.y;
+                const d = Math.hypot(dx, dy);
+                if (d < 1) return;
+                const speed = 450;
+                bullets.push(new Bullet(this.x, this.y + 35, (dx / d) * speed, (dy / d) * speed, this.damage, 'enemy', '#ff0088', 7));
+                // Also shoot a second bullet at slight angle
+                const a = Math.atan2(dy, dx);
+                bullets.push(new Bullet(this.x, this.y + 35, Math.cos(a + 0.08) * speed * 0.9, Math.sin(a + 0.08) * speed * 0.9, this.damage * 0.8, 'enemy', '#ff44aa', 6));
+                bullets.push(new Bullet(this.x, this.y + 35, Math.cos(a - 0.08) * speed * 0.9, Math.sin(a - 0.08) * speed * 0.9, this.damage * 0.8, 'enemy', '#ff44aa', 6));
+            } else if (this.phase === 2) {
+                for (let i = -2; i <= 2; i++) {
+                    const target = getAlivePlayers()[0] || { x: W / 2, y: H };
+                    const dx = target.x - this.x;
+                    const dy = target.y - this.y;
+                    const a = Math.atan2(dy, dx) + i * 0.08;
+                    bullets.push(new Bullet(this.x, this.y + 35, Math.cos(a) * 450, Math.sin(a) * 450, this.damage * 0.7, 'enemy', '#ff44aa', 5));
+                }
+            } else {
+                for (let i = -4; i <= 4; i++) {
+                    const a = Math.PI / 2 + i * 0.12;
+                    bullets.push(new Bullet(this.x, this.y + 35, Math.cos(a) * 400, Math.sin(a) * 400, this.damage * 0.5, 'enemy', '#ff0088', 4));
+                }
+            }
+            return;
+        }
+
+        // Miniboss2 shooting
+        if (this.type === ENEMY_TYPES.MINIBOSS2) {
+            const target = getAlivePlayers()[0] || { x: W / 2, y: H };
+            const dx = target.x - this.x;
+            const dy = target.y - this.y;
+            const a = Math.atan2(dy, dx);
+            for (let i = -2; i <= 2; i++) {
+                bullets.push(new Bullet(this.x, this.y + 25, Math.cos(a + i * 0.1) * 380, Math.sin(a + i * 0.1) * 380, this.damage, 'enemy', '#ff00aa', 5));
+            }
+            return;
+        }
+
+        // Warlock shoots homing bullets
+        if (this.type === ENEMY_TYPES.WARLOCK) {
+            const target = getAlivePlayers()[0] || { x: W / 2, y: H };
+            const dx = target.x - this.x;
+            const dy = target.y - this.y;
+            const d = Math.hypot(dx, dy);
+            if (d < 1) return;
+            const speed = 280;
+            const b = new Bullet(this.x, this.y + 15, (dx / d) * speed, (dy / d) * speed, this.damage, 'enemy', '#8800ff', 5);
+            b.isHoming = true;
+            b.owner = 'enemy';
+            bullets.push(b);
+            return;
+        }
+
+        // Laser turret shoots fast thin beams
+        if (this.type === ENEMY_TYPES.LASER_TURRET) {
+            const target = getAlivePlayers()[0] || { x: W / 2, y: H };
+            const dx = target.x - this.x;
+            const dy = target.y - this.y;
+            const d = Math.hypot(dx, dy);
+            if (d < 1) return;
+            const speed = 600;
+            bullets.push(new Bullet(this.x, this.y, (dx / d) * speed, (dy / d) * speed, this.damage, 'enemy', '#ff2266', 3));
+            return;
+        }
+
+        // Boss shooting
+        if (this.type === ENEMY_TYPES.BOSS) {
             if (this.phase === 1) {
                 const target = getAlivePlayers()[0] || { x: W / 2, y: H };
                 const dx = target.x - this.x;
@@ -1437,12 +1769,12 @@ class Enemy {
             this.alive = false;
             if (this.isBoss) {
                 playSfx('explosion_boss');
-            } else if (this.type === ENEMY_TYPES.MINIBOSS) {
+            } else if (this.type === ENEMY_TYPES.MINIBOSS || this.type === ENEMY_TYPES.MINIBOSS2) {
                 playSfx('explosion_big');
             } else {
                 playSfx('explosion_small');
             }
-            const exCount = this.isBoss ? 80 : this.type === ENEMY_TYPES.MINIBOSS ? 50 : 20;
+            const exCount = this.isBoss ? 80 : (this.type === ENEMY_TYPES.MINIBOSS || this.type === ENEMY_TYPES.MINIBOSS2) ? 50 : 20;
             const color1 = this.isBoss ? '#ff0040' : this.color;
             spawnExplosion(this.x, this.y, exCount, color1, '#ffd700');
             score += this.scoreVal;
@@ -1459,8 +1791,8 @@ class Enemy {
                 screenFlash = 0.5;
             }
             // Spawn pickup on enemy death
-            const isMedium = !this.isPlane || this.type === ENEMY_TYPES.BOMBER || this.type === ENEMY_TYPES.HELICOPTER;
-            const dropChance = this.isBoss ? 1.0 : this.type === ENEMY_TYPES.MINIBOSS ? 1.0 : isMedium ? 0.70 : 0.45;
+            const isMedium = !this.isPlane || this.type === ENEMY_TYPES.BOMBER || this.type === ENEMY_TYPES.HELICOPTER || this.type === ENEMY_TYPES.NUKE_BOMBER || this.type === ENEMY_TYPES.LASER_TURRET || this.type === ENEMY_TYPES.WARLOCK;
+            const dropChance = this.isBoss ? 1.0 : (this.type === ENEMY_TYPES.MINIBOSS || this.type === ENEMY_TYPES.MINIBOSS2) ? 1.0 : isMedium ? 0.70 : 0.45;
             if (Math.random() < dropChance) {
                 spawnPickup(this.x, this.y);
             }
@@ -1471,6 +1803,12 @@ class Enemy {
         const s = this.size;
 
         ctx.save();
+
+        // Stealth effect
+        if (this.stealth) {
+            const stealthAlpha = 0.4 + 0.3 * Math.sin(Date.now() * 0.005);
+            ctx.globalAlpha = stealthAlpha;
+        }
 
         if (this.flashTimer > 0) {
             ctx.shadowColor = '#ffffff';
@@ -1489,12 +1827,17 @@ class Enemy {
         }
 
         ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
 
         if (this.isBoss) {
-            ctx.fillStyle = '#ff0040';
+            ctx.fillStyle = this.color;
             ctx.font = 'bold 16px Arial';
             ctx.textAlign = 'center';
-            const name = this.type === ENEMY_TYPES.MINIBOSS ? '⚡ 小Boss' : '☠ 大Boss';
+            let name = '';
+            if (this.type === ENEMY_TYPES.MINIBOSS) name = '⚡ 小Boss';
+            else if (this.type === ENEMY_TYPES.BOSS) name = '☠ 大Boss';
+            else if (this.type === ENEMY_TYPES.MINIBOSS2) name = '⚡ 小Boss·改';
+            else if (this.type === ENEMY_TYPES.BOSS2) name = '☠ 终极Boss';
             ctx.fillText(name, this.x, this.y - 30 * s - 10);
         }
 
@@ -1537,6 +1880,8 @@ function clearGame() {
     enemyIdCounter = 0;
     bossAnnounced = false;
     miniBossAnnounced = false;
+    boss2Announced = false;
+    miniBoss2Announced = false;
     initScrollingBg();
 }
 
@@ -1544,12 +1889,19 @@ function clearGame() {
 let waveIndex = 0;
 let bossAnnounced = false;
 let miniBossAnnounced = false;
+let boss2Announced = false;
+let miniBoss2Announced = false;
+
+function getWaveConfig() {
+    return currentLevel === 1 ? WAVE_CONFIG_L1 : WAVE_CONFIG_L2;
+}
 
 function updateWaveSpawner(dt) {
     const t = gameTime;
-    for (let i = waveIndex; i < WAVE_CONFIG.length; i++) {
-        if (t >= WAVE_CONFIG[i].time) {
-            const wave = WAVE_CONFIG[i];
+    const config = getWaveConfig();
+    for (let i = waveIndex; i < config.length; i++) {
+        if (t >= config[i].time) {
+            const wave = config[i];
             for (const group of wave.enemies) {
                 for (let j = 0; j < group.count; j++) {
                     const enemy = createEnemyForWave(group.type);
@@ -1563,10 +1915,10 @@ function updateWaveSpawner(dt) {
 
 function createEnemyForWave(type) {
     let x, y;
-    if (type === ENEMY_TYPES.BOSS) {
+    if (type === ENEMY_TYPES.BOSS || type === ENEMY_TYPES.BOSS2) {
         x = W / 2;
         y = 60;
-    } else if (type === ENEMY_TYPES.MINIBOSS) {
+    } else if (type === ENEMY_TYPES.MINIBOSS || type === ENEMY_TYPES.MINIBOSS2) {
         x = W / 2 + rand(-150, 150);
         y = 100;
     } else {
@@ -1618,7 +1970,7 @@ function checkCollisions() {
             if (dist(e, p) < (e.w / 2 + 18) * 0.8) {
                 p.takeDamage(e.damage * 0.5);
                 spawnExplosion(p.x, p.y, 10, '#ff4444', '#ffd700');
-                if (e.type !== ENEMY_TYPES.BOSS && e.type !== ENEMY_TYPES.MINIBOSS) {
+                if (e.type !== ENEMY_TYPES.BOSS && e.type !== ENEMY_TYPES.BOSS2 && e.type !== ENEMY_TYPES.MINIBOSS && e.type !== ENEMY_TYPES.MINIBOSS2) {
                     e.alive = false;
                     playSfx('explosion_small');
                     spawnExplosion(e.x, e.y, 15, e.color, '#ffd700');
@@ -1719,7 +2071,8 @@ function update(dt) {
 
     checkCollisions();
 
-    const allWavesSpawned = waveIndex >= WAVE_CONFIG.length;
+    const config = getWaveConfig();
+    const allWavesSpawned = waveIndex >= config.length;
     const remainingEnemies = enemies.filter(e => e.alive);
 
     if (allWavesSpawned && remainingEnemies.length === 0 && gameTime > 5) {
@@ -1735,6 +2088,7 @@ function update(dt) {
         showGameOver(false);
     }
 
+    // Boss announcements
     const bossAlive = enemies.find(e => e.type === ENEMY_TYPES.BOSS && e.alive);
     if (bossAlive && !bossAnnounced) {
         bossAnnounced = true;
@@ -1749,6 +2103,20 @@ function update(dt) {
         screenFlash = 0.4;
         shakeAmount = 15;
     }
+    const boss2Alive = enemies.find(e => e.type === ENEMY_TYPES.BOSS2 && e.alive);
+    if (boss2Alive && !boss2Announced) {
+        boss2Announced = true;
+        playSfx('boss_warn');
+        screenFlash = 0.8;
+        shakeAmount = 30;
+    }
+    const miniBoss2Alive = enemies.find(e => e.type === ENEMY_TYPES.MINIBOSS2 && e.alive);
+    if (miniBoss2Alive && !miniBoss2Announced && !boss2Announced) {
+        miniBoss2Announced = true;
+        playSfx('boss_warn');
+        screenFlash = 0.4;
+        shakeAmount = 15;
+    }
 }
 
 function render() {
@@ -1759,17 +2127,32 @@ function render() {
             ctx.translate(rand(-shakeAmount, shakeAmount), rand(-shakeAmount, shakeAmount));
         }
 
+        // Level-specific background colors
+        let bgColor1, bgColor2, bgColor3;
+        if (currentLevel === 1) {
+            bgColor1 = '#0d1528';
+            bgColor2 = '#080e1a';
+            bgColor3 = '#04060a';
+        } else {
+            // Level 2: Darker, more purple/red tones
+            bgColor1 = '#1a0d28';
+            bgColor2 = '#0e081a';
+            bgColor3 = '#0a0406';
+        }
+
         const grad = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.7);
-        grad.addColorStop(0, '#0d1528');
-        grad.addColorStop(0.5, '#080e1a');
-        grad.addColorStop(1, '#04060a');
+        grad.addColorStop(0, bgColor1);
+        grad.addColorStop(0.5, bgColor2);
+        grad.addColorStop(1, bgColor3);
         ctx.fillStyle = grad;
         ctx.fillRect(-20, -20, W + 40, H + 40);
 
         const speedRatio = clamp(scrollSpeed / 120, 0, 1);
 
+        // Level 2: Add red/purple tint to speed lines
+        const lineColor = currentLevel === 1 ? '100, 180, 255' : '200, 100, 255';
         for (const line of bgSpeedLines) {
-            ctx.strokeStyle = `rgba(100, 180, 255, ${line.alpha * (0.5 + 0.5 * speedRatio)})`;
+            ctx.strokeStyle = `rgba(${lineColor}, ${line.alpha * (0.5 + 0.5 * speedRatio)})`;
             ctx.lineWidth = line.width;
             ctx.beginPath();
             ctx.moveTo(line.x, line.y);
@@ -1777,21 +2160,25 @@ function render() {
             ctx.stroke();
         }
 
+        // Level 2: Add some purple tint to stars
+        const starColor = currentLevel === 1 ? '180, 220, 255' : '220, 180, 255';
         for (const star of bgStars) {
             const twinkle = 0.7 + 0.3 * Math.sin(star.pulse);
             ctx.beginPath();
             ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(180, 220, 255, ${star.alpha * twinkle * (0.6 + 0.4 * speedRatio)})`;
+            ctx.fillStyle = `rgba(${starColor}, ${star.alpha * twinkle * (0.6 + 0.4 * speedRatio)})`;
             ctx.fill();
             if (star.layer === 2 && star.size > 2.5) {
-                ctx.shadowColor = 'rgba(100, 180, 255, 0.3)';
+                ctx.shadowColor = `rgba(${lineColor}, 0.3)`;
                 ctx.shadowBlur = 8;
                 ctx.fill();
                 ctx.shadowBlur = 0;
             }
         }
 
-        ctx.strokeStyle = `rgba(26, 107, 255, ${0.03 + 0.04 * speedRatio})`;
+        // Grid color based on level
+        const gridColor = currentLevel === 1 ? '26, 107, 255' : '150, 50, 200';
+        ctx.strokeStyle = `rgba(${gridColor}, ${0.03 + 0.04 * speedRatio})`;
         ctx.lineWidth = 1;
         const gs = 80;
         const gridOffset = (gameTime * 60 * speedRatio) % gs;
@@ -1806,11 +2193,13 @@ function render() {
             ctx.stroke();
         }
 
+        // Ground
+        const groundColor = currentLevel === 1 ? '26, 107, 255' : '150, 50, 200';
         const groundSpeed = 80 + scrollSpeed * 0.6;
         const groundOffset = (gameTime * groundSpeed) % 120;
-        ctx.fillStyle = 'rgba(26, 107, 255, 0.04)';
+        ctx.fillStyle = `rgba(${groundColor}, 0.04)`;
         ctx.fillRect(0, H - 30, W, 30);
-        ctx.fillStyle = 'rgba(26, 107, 255, 0.06)';
+        ctx.fillStyle = `rgba(${groundColor}, 0.06)`;
         for (let gx = -groundOffset * 2; gx < W + 120; gx += 120) {
             ctx.fillRect(gx, H - 25, 60, 3);
         }
@@ -1861,7 +2250,8 @@ function drawHUD(ctx) {
     ctx.fillStyle = 'rgba(0, 0, 20, 0.7)';
     ctx.fillRect(0, 0, W, 50);
 
-    ctx.fillStyle = '#1a6bff';
+    const hudColor = currentLevel === 1 ? '#1a6bff' : '#aa44ff';
+    ctx.fillStyle = hudColor;
     ctx.fillRect(0, 48, W, 2);
 
     const minutes = Math.floor(gameTime / 60);
@@ -1876,6 +2266,12 @@ function drawHUD(ctx) {
     ctx.font = 'bold 20px Arial';
     ctx.fillText(`🏆 ${score}`, 20, 33);
 
+    // Level indicator
+    ctx.textAlign = 'left';
+    ctx.fillStyle = hudColor;
+    ctx.font = 'bold 14px Arial';
+    ctx.fillText(`第${currentLevel}关`, 110, 33);
+
     if (comboCount > 2) {
         ctx.textAlign = 'center';
         ctx.fillStyle = '#ff6b35';
@@ -1883,22 +2279,32 @@ function drawHUD(ctx) {
         ctx.fillText(`${comboCount}x COMBO!`, W / 2, 80);
     }
 
-    const progress = Math.min(waveIndex / WAVE_CONFIG.length, 1);
+    const config = getWaveConfig();
+    const progress = Math.min(waveIndex / config.length, 1);
     ctx.fillStyle = 'rgba(255,255,255,0.1)';
     ctx.fillRect(W - 160, 15, 140, 6);
-    ctx.fillStyle = '#1a6bff';
+    ctx.fillStyle = hudColor;
     ctx.fillRect(W - 160, 15, 140 * progress, 6);
     ctx.fillStyle = '#6b8cff';
     ctx.font = '10px Arial';
     ctx.textAlign = 'right';
 
     let phaseName = '准备中';
-    if (gameTime < 30) phaseName = '初战';
-    else if (gameTime < 70) phaseName = '升级';
-    else if (gameTime < 110) phaseName = '激战';
-    else if (gameTime < 140) phaseName = '小Boss战';
-    else if (gameTime < 158) phaseName = '最终冲锋';
-    else phaseName = '大Boss战';
+    if (currentLevel === 1) {
+        if (gameTime < 30) phaseName = '初战';
+        else if (gameTime < 70) phaseName = '升级';
+        else if (gameTime < 110) phaseName = '激战';
+        else if (gameTime < 140) phaseName = '小Boss战';
+        else if (gameTime < 158) phaseName = '最终冲锋';
+        else phaseName = '大Boss战';
+    } else {
+        if (gameTime < 25) phaseName = '突入';
+        else if (gameTime < 60) phaseName = '强袭';
+        else if (gameTime < 95) phaseName = '死斗';
+        else if (gameTime < 120) phaseName = '小Boss·改';
+        else if (gameTime < 148) phaseName = '最终决战';
+        else phaseName = '终极Boss';
+    }
 
     ctx.fillText(phaseName, W - 20, 12);
 
@@ -1984,7 +2390,7 @@ function drawHUD(ctx) {
         ctx.fillText('🎉 关卡完成!', W / 2, H / 2 - 40);
     }
 
-    // Boss warning
+    // Boss warnings
     const bossActive = enemies.find(e => e.type === ENEMY_TYPES.BOSS && e.alive);
     if (bossActive) {
         ctx.textAlign = 'center';
@@ -1999,6 +2405,20 @@ function drawHUD(ctx) {
         ctx.font = 'bold 36px Arial';
         ctx.fillText('⚡ 小BOSS', W / 2, 100);
     }
+    const boss2Active = enemies.find(e => e.type === ENEMY_TYPES.BOSS2 && e.alive);
+    if (boss2Active) {
+        ctx.textAlign = 'center';
+        ctx.fillStyle = `rgba(255, 0, 136, ${0.3 + 0.3 * Math.sin(Date.now() * 0.003)})`;
+        ctx.font = 'bold 64px Arial';
+        ctx.fillText('☠ 终极BOSS', W / 2, 120);
+    }
+    const miniBoss2Active = enemies.find(e => e.type === ENEMY_TYPES.MINIBOSS2 && e.alive);
+    if (miniBoss2Active && !boss2Active) {
+        ctx.textAlign = 'center';
+        ctx.fillStyle = `rgba(255, 0, 170, ${0.3 + 0.3 * Math.sin(Date.now() * 0.004)})`;
+        ctx.font = 'bold 36px Arial';
+        ctx.fillText('⚡ 小BOSS·改', W / 2, 100);
+    }
 }
 
 // ========== GAME CONTROL FUNCTIONS ==========
@@ -2008,7 +2428,9 @@ function startGame(mode) {
     document.getElementById('menuScreen').style.display = 'none';
     document.getElementById('pauseScreen').style.display = 'none';
     document.getElementById('gameOverScreen').style.display = 'none';
+    document.getElementById('levelTransitionScreen').style.display = 'none';
     gameMode = mode;
+    currentLevel = 1;
     clearGame();
 
     const p1 = new Player(200, H - 100, {
@@ -2023,6 +2445,38 @@ function startGame(mode) {
         }, 2);
         p2.isPlane = false;
         players1.push(p2);
+    }
+
+    waveIndex = 0;
+    gameState = 'playing';
+    lastTime = performance.now();
+    if (animFrameId) cancelAnimationFrame(animFrameId);
+    gameLoop(lastTime);
+}
+
+function startLevel(level) {
+    ensureAudioCtx();
+    playSfx('level_up');
+    document.getElementById('levelTransitionScreen').style.display = 'none';
+    currentLevel = level;
+    clearGame();
+
+    // Keep players with their stats
+    const oldPlayers = [...players1];
+    players1 = [];
+    for (const oldP of oldPlayers) {
+        const p = new Player(oldP.x, oldP.y, oldP.controls, oldP.id);
+        p.isPlane = oldP.isPlane;
+        p.hp = Math.min(oldP.maxHp, oldP.hp + 30); // Bonus HP for next level
+        p.maxHp = oldP.maxHp + 20; // Increase max HP
+        p.bulletDamage = oldP.bulletDamage;
+        p.shootRate = oldP.shootRate;
+        p.spreadLevel = oldP.spreadLevel;
+        p.speed = oldP.speed;
+        p.ultCharge = oldP.ultCharge;
+        p.ultReady = oldP.ultReady;
+        p.respawnsLeft = oldP.respawnsLeft;
+        players1.push(p);
     }
 
     waveIndex = 0;
@@ -2049,14 +2503,24 @@ function backToMenu() {
     document.getElementById('menuScreen').style.display = 'flex';
     document.getElementById('pauseScreen').style.display = 'none';
     document.getElementById('gameOverScreen').style.display = 'none';
+    document.getElementById('levelTransitionScreen').style.display = 'none';
     clearGame();
 }
 
 function showGameOver(won) {
+    if (won && currentLevel === 1) {
+        // Show level transition to level 2
+        document.getElementById('levelTransitionScreen').style.display = 'flex';
+        document.getElementById('levelTransitionTitle').textContent = '🎉 第一关通过!';
+        document.getElementById('levelTransitionInfo').textContent = `得分: ${score} | 准备进入第二关...`;
+        document.getElementById('gameOverScreen').style.display = 'none';
+        return;
+    }
+
     const screen = document.getElementById('gameOverScreen');
     screen.style.display = 'flex';
-    document.getElementById('resultTitle').textContent = won ? '🎉 胜利!' : '💥 游戏结束';
-    let stats = `得分: ${score} | 时间: ${Math.floor(gameTime / 60)}:${Math.floor(gameTime % 60).toString().padStart(2, '0')}`;
+    document.getElementById('resultTitle').textContent = won ? '🎉 恭喜通关!' : '💥 游戏结束';
+    let stats = `得分: ${score} | 时间: ${Math.floor(gameTime / 60)}:${Math.floor(gameTime % 60).toString().padStart(2, '0')} | 通关: 第${currentLevel}关`;
     for (const p of players1) {
         stats += ` | P${p.id}: ${p.kills}击杀`;
     }
@@ -2083,3 +2547,4 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
 console.log('🔥 坦克飞机大战 PS5版 已加载');
 console.log('单人模式: WASD移动, J射击, K大招');
 console.log('双人模式: P2方向键移动, 1射击, 2大招');
+console.log('🎮 新增第二关! 更强的敌人等待着你!');
