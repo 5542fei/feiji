@@ -2459,16 +2459,15 @@ function startLevel(level) {
     playSfx('level_up');
     document.getElementById('levelTransitionScreen').style.display = 'none';
     currentLevel = level;
+
+    const oldPlayers = [...players1];
     clearGame();
 
-    // Keep players with their stats
-    const oldPlayers = [...players1];
-    players1 = [];
     for (const oldP of oldPlayers) {
         const p = new Player(oldP.x, oldP.y, oldP.controls, oldP.id);
         p.isPlane = oldP.isPlane;
-        p.hp = Math.min(oldP.maxHp, oldP.hp + 30); // Bonus HP for next level
-        p.maxHp = oldP.maxHp + 20; // Increase max HP
+        p.hp = Math.min(oldP.maxHp, oldP.hp + 30);
+        p.maxHp = oldP.maxHp + 20;
         p.bulletDamage = oldP.bulletDamage;
         p.shootRate = oldP.shootRate;
         p.spreadLevel = oldP.spreadLevel;
